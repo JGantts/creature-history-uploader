@@ -225,48 +225,24 @@ file oclo
                                     for (int x = 0; x < width; x++)
                                     {
                                         UInt16 rgbUInt16 = r.ReadUInt16();
-                                        Int32 red = (((Int32)rgbUInt16 & 0x7c00) >> 7);
-                                        Int32 green = (((Int32)rgbUInt16 & 0x7c00) >> 7);
-                                        Int32 blue = (((Int32)rgbUInt16 & 0x7c00) >> 7);
+                                        Int32 red = (int)(((UInt32)rgbUInt16 & 0xf800) >> 8);
+                                        Int32 green = (int)(((UInt32)rgbUInt16 & 0x07e0) >> 3);
+                                        Int32 blue = (int)(((UInt32)rgbUInt16 & 0x001f) << 3);
                                         bm.SetPixel(x, y, Color.FromArgb(red, green, blue));
+                                        //Console.WriteLine($"r:{red} g:{green} b:{blue}");
                                     }
                                 }
-                                /*using (WebClient client = new WebClient())
+                                using (WebClient client = new WebClient())
                                 using (var ms = new MemoryStream())
                                 {
+                                    client.Headers.Add("Content-Type", "image/png");
                                     bm.Save(ms, ImageFormat.Png);
-                                    client.UploadData("ftp://100.100.100.100/new_folder/img_1.png", ms.ToArray());
-                                }*/
+                                    Console.WriteLine($"{uriString}images/{Path.GetFileNameWithoutExtension(fileEntry)}");
+                                    client.UploadData($"{uriString}images/{Path.GetFileNameWithoutExtension(fileEntry)}", "PUT", ms.ToArray());
+                                }
                             }
-
- 
-
-                            /*string json = r.ReadToEnd();
-                            dynamic array = JsonConvert.DeserializeObject(json);
-                            foreach (var item in array)
-                            {
-                                // Create a new WebClient instance.
-                                WebClient myWebClient = new WebClient();
-                                //string postData = item;
-
-                                // Apply ASCII Encoding to obtain the string as a byte array.
-                                Console.WriteLine("PUTting {0} ...", item.ToString(Formatting.None));
-
-                                byte[] postArray = Encoding.UTF8.GetBytes(item.ToString(Formatting.None));
-                                Console.WriteLine("Uploading to {0} ...", uriString + item.moniker);
-                                myWebClient.Headers.Add("Content-Type", "application/json");
-
-                                //UploadData implicitly sets HTTP POST as the request method.
-
-
-                                byte[] responseArray = myWebClient.UploadData(uriString + item.moniker, "PUT", postArray);
-
-                                // Decode and display the response.
-                                Console.WriteLine("\nResponse received was :{0}", Encoding.ASCII.GetString(responseArray));
-                            }*/
                         }
                         Console.WriteLine("Image: " + fileEntry);
-                        //return;
 
                     }
                 }
