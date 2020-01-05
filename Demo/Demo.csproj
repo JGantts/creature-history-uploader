@@ -55,11 +55,5 @@
     <None Include="App.config" />
     <None Include="packages.config" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\CAOS\CAOS.csproj">
-      <Project>{a4ef3e36-9042-44ae-ad4d-b644a4f7c719}</Project>
-      <Name>CAOS</Name>
-    </ProjectReference>
-  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -1,5 +1,4 @@
 ﻿using System;
-using CAOS;
 using System.Diagnostics;
 using System.Net;
 using System.Text;
@@ -9,275 +8,256 @@ using Newtonsoft.Json;
 using System.Configuration;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Linq;
+using Newtonsoft.Json.Linq;
 
 namespace ConsoleApp1
 {
     class Demo
     {
-        static void Main(string[] args)
-        {
-            CaosInjector injector = new CaosInjector("Docking Station");
-
-            if (injector.CanConnectToGame())
-            {
-                TryCatchStrategy(injector);
-                //TryReturnBoolStrategy(injector);
-            }
-            else
-            {
-                Console.WriteLine("Couldn't connect to game.");
-            }
-            Console.ReadKey();
-        }
-
         private static string uriString { get; } = "https://lemurware.tech/api/v1/creatures/";
-        private static string documentsDockingStation { get; }
+        private static string documentsDockingStationWorlds { get; }
 
         static Demo()
         {
-            string gog = (Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/creatures/docking station/");
+            string gog = (Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/creatures/docking station/My Worlds");
 
             if (Directory.Exists(gog))
             {
-                documentsDockingStation = gog;
+                documentsDockingStationWorlds = gog;
             }
             else
             {
-                documentsDockingStation = ConfigurationManager.AppSettings["documentsDockingStation"];
+                documentsDockingStationWorlds = ConfigurationManager.AppSettings["documentsDockingStationWorlds"];
             }
         }
 
-        private static void TryCatchStrategy(CaosInjector injector)
+        static void Main(string[] args)
         {
-            try
+            var worldDirectories = Directory.GetDirectories(documentsDockingStationWorlds).Where(x => !x.EndsWith("\\Startup"));
+
+            foreach (string worldDirectory in worldDirectories)
             {
-                CaosResult result = injector.ExecuteCaos(
- @"
-outs wnam
-sets va70 rtif rtim ""%Y%m%d%H%M%S""
-adds va70 "".crdb.json""
-file oope 0 va70 0
-sets va00 """"
-outs ""[""
-loop
-    sets va50 va00
-    sets va00 hist next va00
-    doif va50 <> """" AND hist mute va00 <> -1
-        outs "",""
-    endi
+                string worldJournalDirectory = worldDirectory + "/Journal/";
+                string worldImagesDirectory = worldDirectory + "/Images/";
 
-    doif hist mute va00 <> -1
-        outs ""{""
+                Console.WriteLine("Searching: " + worldJournalDirectory);
 
-        outs ""\""moniker\"":\""""
-	    outs va00
-        outs ""\"",""
-
-        outs ""\""name\"":\""""
-	    outs hist name va00
-        outs ""\"",""
-
-        outs ""\""crossoverPointMutations\"":""
-	    outv hist cros va00
-        outs "",""
-
-        outs ""\""pointMutations\"":""
-	    outv hist mute va00
-        outs "",""
-
-        outs ""\""gender\"":""
-	    outv hist gend va00
-        outs "",""
-
-        outs ""\""genus\"":""
-	    outv hist gnus va00
-        outs "",""
-
-        outs ""\""events\"":[""
-
-        setv va01 0
-        setv va60 hist coun va00
-        loop
-
-            doif va01 <> 0
-                outs "",""
-            endi
-            
-            outs ""{""
-
-            outs ""\""histEventType\"":""
-	        outv hist type va00 va01
-            outs "",""
-
-            outs ""\""lifeStage\"":""
-	        outv hist cage va00 va01
-            outs "",""
-
-            outs ""\""photo\"":\""""
-	        outs hist foto va00 va01
-            outs ""\"",""
-
-            outs ""\""moniker1\"":\""""
-	        outs hist mon1 va00 va01
-            outs ""\"",""
-
-            outs ""\""moniker2\"":\""""
-	        outs hist mon2 va00 va01
-            outs ""\"",""
-
-            outs ""\""timeUtc\"":""
-	        outv hist rtim va00 va01
-            outs "",""
-
-            outs ""\""tickAge\"":""
-	        outv hist tage va00 va01
-            outs "",""
-
-            outs ""\""worldTick\"":""
-	        outv hist wtik va00 va01
-            outs "",""
-
-            outs ""\""worldName\"":\""""
-	        outs hist wnam va00 va01
-            outs ""\"",""
-
-            outs ""\""worldId\"":\""""
-	        outs hist wuid va00 va01
-            outs ""\"",""
-
-            outs ""\""userText\"":\""""
-	        outs hist utxt va00 va01
-            outs ""\""""
-
-            outs ""}""
-
-            addv va01 1
-        untl va01 >= va60
-
-        outs ""]}""
-
-    endi
-untl va00 = """"
-outs ""]""
-file oclo
-
-");
-                if (result.Success)
+                foreach (string fileEntry in Directory.GetFiles(worldJournalDirectory).ToList())
                 {
-                    string worldName = result.Content.Replace("\0", string.Empty);
-
-                    string worldDirectory = documentsDockingStation + "/My Worlds/" + worldName;
-                    string worldJournalDirectory = worldDirectory + "/Journal";
-                    string worldImagesDirectory = worldDirectory + "/Images";
-
-
-                    foreach (string fileEntry in Directory.GetFiles(worldJournalDirectory))
+                    if (fileEntry.EndsWith(".creature.crdb1.json") || fileEntry.EndsWith(".creatureEvents.crdb1.json"))
                     {
-                        if (fileEntry.EndsWith(".crdb.json"))
+                        using (StreamReader r = new StreamReader(fileEntry))
                         {
-                            /*using (StreamReader r = new StreamReader(fileEntry))
+                            string json = r.ReadToEnd();
+                            dynamic creature = JsonConvert.DeserializeObject(json);
+
+                            byte[] postArray = Encoding.UTF8.GetBytes(creature.ToString(Formatting.None));
+
+                            //UploadData implicitly sets HTTP POST as the request method.
+
+                            bool done = false;
+                            while (!done)
                             {
-                                string json = r.ReadToEnd();
-                                dynamic array = JsonConvert.DeserializeObject(json);
-                                foreach (var item in array)
+                                try
                                 {
-                                    // Create a new WebClient instance.
                                     WebClient myWebClient = new WebClient();
-                                    //string postData = item;
-
-                                    // Apply ASCII Encoding to obtain the string as a byte array.
-                                    Console.WriteLine("PUTting {0} ...", item.ToString(Formatting.None));
-
-                                    byte[] postArray = Encoding.UTF8.GetBytes(item.ToString(Formatting.None));
-                                    Console.WriteLine("Uploading to {0} ...", uriString + item.moniker);
+                                    string uriStringfinal = uriString + creature.moniker; 
+                                    Console.WriteLine("Uploading to {0} ...", uriStringfinal);
                                     myWebClient.Headers.Add("Content-Type", "application/json");
-
-                                    //UploadData implicitly sets HTTP POST as the request method.
-
-
-
-
-                                    byte[] responseArray = myWebClient.UploadData(uriString + item.moniker, "PUT", postArray);
-
+                                    byte[] responseArray = myWebClient.UploadData(uriStringfinal, "PUT", postArray);
                                     // Decode and display the response.
                                     Console.WriteLine("\nResponse received was :{0}", Encoding.ASCII.GetString(responseArray));
+                                    done = true;
                                 }
-                            }*/
-                            Console.WriteLine("Deleting: " + fileEntry);
-                            File.Delete(fileEntry);
-                        }
-                    }
-
-                    foreach (string fileEntry in Directory.GetFiles(worldImagesDirectory))
-                    {
-                        using (BinaryReader r = new BinaryReader(File.Open(fileEntry, FileMode.Open)))
-                        {
-                            Int32 rgbFormat = (Int32)r.ReadUInt32();
-                            Int32 numberofImages = (Int32)r.ReadUInt16();
-                            Int32 offsetToImageData = (Int32)r.ReadUInt32();
-                            Int32 width = (Int32)r.ReadUInt16();
-                            Int32 height = (Int32)r.ReadUInt16();
-
-                            using (Bitmap bm = new Bitmap(width, height))
-                            {
-                                for (int y = 0; y < height; y++)
+                                catch (Exception error)
                                 {
-                                    for (int x = 0; x < width; x++)
-                                    {
-                                        UInt16 rgbUInt16 = r.ReadUInt16();
-                                        Int32 red = (int)(((UInt32)rgbUInt16 & 0xf800) >> 8);
-                                        Int32 green = (int)(((UInt32)rgbUInt16 & 0x07e0) >> 3);
-                                        Int32 blue = (int)(((UInt32)rgbUInt16 & 0x001f) << 3);
-                                        bm.SetPixel(x, y, Color.FromArgb(red, green, blue));
-                                        //Console.WriteLine($"r:{red} g:{green} b:{blue}");
-                                    }
-                                }
-                                using (WebClient client = new WebClient())
-                                using (var ms = new MemoryStream())
-                                {
-                                    client.Headers.Add("Content-Type", "image/png");
-                                    bm.Save(ms, ImageFormat.Png);
-                                    Console.WriteLine($"{uriString}images/{Path.GetFileNameWithoutExtension(fileEntry)}");
-                                    client.UploadData($"{uriString}images/{Path.GetFileNameWithoutExtension(fileEntry)}", "PUT", ms.ToArray());
+                                    Console.WriteLine(error.ToString());
+                                    Console.ReadKey();
                                 }
                             }
-                        }
-                        Console.WriteLine("Image: " + fileEntry);
 
+                            foreach (dynamic lifeEvent in creature.events)
+                            {
+                                if (lifeEvent.photo != "")
+                                {
+                                    uploadPhoto(worldImagesDirectory + lifeEvent.photo + ".s16");
+                                }
+                            }
+
+                        }
+                        Console.WriteLine("Deleting: " + fileEntry);
+                        File.Delete(fileEntry);
                     }
-                }
-                else
-                {
-                    Console.WriteLine($"Error Code: {result.ResultCode}");
+                    else if (fileEntry.EndsWith(".event.crdb1.json"))
+                    {
+                        using (StreamReader r = new StreamReader(fileEntry))
+                        {
+                            string json = r.ReadToEnd();
+                            dynamic lifeEvent = JsonConvert.DeserializeObject(json);
+
+                            byte[] postArray = Encoding.UTF8.GetBytes(lifeEvent.ToString(Formatting.None));
+
+                            //UploadData implicitly sets HTTP POST as the request method.
+
+                            bool done = false;
+                            while (!done)
+                            {
+                                try
+                                {
+                                    WebClient myWebClient = new WebClient();
+                                    string uriStringFinal = uriString + lifeEvent.moniker + "/events/" + lifeEvent.eventNumber;
+                                    Console.WriteLine("Uploading to {0} ...", uriStringFinal);
+                                    myWebClient.Headers.Add("Content-Type", "application/json");
+                                    byte[] responseArray = myWebClient.UploadData(uriStringFinal, "PUT", postArray);
+                                    // Decode and display the response.
+                                    Console.WriteLine("\nResponse received was :{0}", Encoding.ASCII.GetString(responseArray));
+                                    done = true;
+                                }
+                                catch (Exception error)
+                                {
+                                    Console.WriteLine(error.ToString());
+                                    Console.ReadKey();
+                                }
+                            }
+
+                            if (lifeEvent.photo != "")
+                            {
+                                uploadPhoto(worldImagesDirectory + lifeEvent.photo + ".s16");
+                            }
+
+                        }
+                        Console.WriteLine("Deleting: " + fileEntry);
+                        File.Delete(fileEntry);
+                    }
+                    /*else if (fileEntry.EndsWith(".utxt.crdb1.json"))
+                    {
+                        using (StreamReader r = new StreamReader(fileEntry))
+                        {
+                            string utxt = r.ReadToEnd();
+                            JObject utxtJson = new JObject(
+                                new JProperty("utxt", new JValue(utxt))
+                            );
+                            byte[] postArray = Encoding.UTF8.GetBytes(utxtJson.ToString(Formatting.None));
+
+                            //UploadData implicitly sets HTTP POST as the request method.
+
+                            bool done = false;
+                            while (!done)
+                            {
+                                try
+                                {
+                                    WebClient myWebClient = new WebClient();
+                                    Console.WriteLine("Uploading to {0} ...", uriString + creature.moniker);
+                                    myWebClient.Headers.Add("Content-Type", "application/json");
+                                    byte[] responseArray = myWebClient.UploadData(uriString + creature.moniker, "PUT", postArray);
+                                    // Decode and display the response.
+                                    Console.WriteLine("\nResponse received was :{0}", Encoding.ASCII.GetString(responseArray));
+                                    done = true;
+                                }
+                                catch (Exception error)
+                                {
+                                    Console.WriteLine(error.ToString());
+                                    Console.ReadKey();
+                                }
+                            }
+
+                            foreach (dynamic lifeEvent in creature.events)
+                            {
+                                if (lifeEvent.photo != "")
+                                {
+                                    uploadPhoto(worldImagesDirectory + lifeEvent.photo);
+                                }
+                            }
+
+                        }
+                        Console.WriteLine("Deleting: " + fileEntry);
+                        File.Delete(fileEntry);
+                    }
+                    else if (fileEntry.EndsWith(".name.crdb1.json"))
+                    {
+                        using (StreamReader r = new StreamReader(fileEntry))
+                        {
+                            string json = r.ReadToEnd();
+                            dynamic creature = JsonConvert.DeserializeObject(json);
+
+                            byte[] postArray = Encoding.UTF8.GetBytes(creature.ToString(Formatting.None));
+
+                            //UploadData implicitly sets HTTP POST as the request method.
+
+                            bool done = false;
+                            while (!done)
+                            {
+                                try
+                                {
+                                    WebClient myWebClient = new WebClient();
+                                    Console.WriteLine("Uploading to {0} ...", uriString + creature.moniker);
+                                    myWebClient.Headers.Add("Content-Type", "application/json");
+                                    byte[] responseArray = myWebClient.UploadData(uriString + creature.moniker, "PUT", postArray);
+                                    // Decode and display the response.
+                                    Console.WriteLine("\nResponse received was :{0}", Encoding.ASCII.GetString(responseArray));
+                                    done = true;
+                                }
+                                catch (Exception error)
+                                {
+                                    Console.WriteLine(error.ToString());
+                                    Console.ReadKey();
+                                }
+                            }
+
+                            foreach (dynamic lifeEvent in creature.events)
+                            {
+                                if (lifeEvent.photo != "")
+                                {
+                                    uploadPhoto(worldImagesDirectory + lifeEvent.photo);
+                                }
+                            }
+
+                        }
+                        Console.WriteLine("Deleting: " + fileEntry);
+                        File.Delete(fileEntry);
+                    }*/
                 }
             }
-            catch (NoGameCaosException e)
-            {
-                Console.WriteLine($"Game exited unexpectedly. Error message: {e.Message}");
-            }
+
+            Console.WriteLine("Done.");
+            Console.ReadKey();
         }
 
-        private static void TryReturnBoolStrategy(CaosInjector injector)
+        static void uploadPhoto(string imagePath)
         {
-            CaosResult result;
-            if (injector.TryExecuteCaos("outs \"End file output. Begin upload.\"", out result))
+            using (BinaryReader r = new BinaryReader(File.Open(imagePath, FileMode.Open)))
             {
-                if (result.Success)
+                Int32 rgbFormat = (Int32)r.ReadUInt32();
+                Int32 numberofImages = (Int32)r.ReadUInt16();
+                Int32 offsetToImageData = (Int32)r.ReadUInt32();
+                Int32 width = (Int32)r.ReadUInt16();
+                Int32 height = (Int32)r.ReadUInt16();
+
+                using (Bitmap bm = new Bitmap(width, height))
                 {
-                    Console.WriteLine(result.Content);
-                    //Just try to do it, we don't care about the results
-                    injector.TryExecuteCaos("targ norn doif targ <> null sezz \"Yo yo! What up?\" endi");
-                }
-                else
-                {
-                    Debug.Assert(result.ResultCode != 0);
-                    Console.WriteLine($"Error Code: {result.ResultCode}");
+                    for (int y = 0; y < height; y++)
+                    {
+                        for (int x = 0; x < width; x++)
+                        {
+                            UInt16 rgbUInt16 = r.ReadUInt16();
+                            Int32 red = (int)(((UInt32)rgbUInt16 & 0xf800) >> 8);
+                            Int32 green = (int)(((UInt32)rgbUInt16 & 0x07e0) >> 3);
+                            Int32 blue = (int)(((UInt32)rgbUInt16 & 0x001f) << 3);
+                            bm.SetPixel(x, y, Color.FromArgb(red, green, blue));
+                            //Console.WriteLine($"r:{red} g:{green} b:{blue}");
+                        }
+                    }
+                    using (WebClient client = new WebClient())
+                    using (var ms = new MemoryStream())
+                    {
+                        client.Headers.Add("Content-Type", "image/png");
+                        bm.Save(ms, ImageFormat.Png);
+                        client.UploadData($"{uriString}images/{Path.GetFileNameWithoutExtension(imagePath)}", "PUT", ms.ToArray());
+                    }
                 }
             }
-            else
-            {
-                Console.WriteLine("Execution failed. Game may have exited.");
-            }
+            Console.WriteLine("Image: " + imagePath);
         }
     }
 }
